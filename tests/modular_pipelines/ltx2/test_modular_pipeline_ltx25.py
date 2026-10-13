@@ -19,9 +19,13 @@ import pytest
 import torch
 
 from diffusers.modular_pipelines import LTX2AutoBlocks, LTX25AutoBlocks, LTX25ModularPipeline
+from diffusers.modular_pipelines.ltx2.decoders import LTX2DiffusionVaeDecoderStep
 from diffusers.pipelines.ltx2.pipeline_ltx2_condition import LTX2VideoCondition
 from diffusers.pipelines.ltx2.pipeline_ltx2_ic_lora import LTX2ReferenceCondition
+from diffusers.video_processor import VideoProcessor
 
+from ...pipelines.ltx2.test_ltx2_diffusion_decode import _build_keyframe_decoder
+from ...testing_utils import torch_device
 from ..testing_utils import (
     BaseModularPipelineTesterConfig,
     ModularLoadingTesterMixin,
@@ -272,3 +276,49 @@ class TestLTX25InContextModularPipelineLoading(LTX25InContextModularPipelineTest
 
 class TestLTX25InContextModularPipelineMemory(LTX25InContextModularPipelineTesterConfig, ModularMemoryTesterMixin):
     pass
+
+
+class TestLTX25DiffusionDecoderKeyframes:
+    """Keyframe planes must reach the shared decoder through `LTX2DiffusionVaeDecoderStep`."""
+
+    def test_decoder_step_forwards_keyframes(self):
+        decoder = _build_keyframe_decoder()
+        # Identity denormalize. Pixel size uses the pipeline's default 32x spatial ratio so unpack recovers
+        # the 3x3 latent grid the tiny decoder was built for.
+        decoder.latents_mean.zero_()
+        decoder.latents_std.fill_(1.0)
+
+        pipe = LTX2DiffusionVaeDecoderStep().init_pipeline()
+        pipe.update_components(diffusion_decoder=decoder, video_processor=VideoProcessor(vae_scale_factor=32))
+
+        latents = torch.randn(1, 8, 2, 3, 3, generator=torch.Generator().manual_seed(1)).to(torch_device)
+        keyframes = torch.randn(1, 8, 2, 3, 3, generator=torch.Generator().manual_seed(2)).to(torch_device)
+        packed = latents.permute(0, 2, 3, 4, 1).reshape(1, 2 * 3 * 3, 8)
+        call = {
+            "latents": packed,
+            "height": 96,
+            "width": 96,
+            "num_frames": 9,
+            "dtype": latents.dtype,
+            "output_type": "pt",
+            "output": "videos",
+        }
+        plain = pipe(**call, generator=torch.Generator(torch_device).manual_seed(0))
+        with_planes = pipe(
+            **call,
+            keyframe_latents=keyframes,
+            keyframe_frame_indices=[8, 16],
+            generator=torch.Generator(torch_device).manual_seed(0),
+        )
+        assert with_planes.shape == plain.shape
+        assert not torch.allclose(with_planes, plain)
+
+        with torch.no_grad():
+            direct = decoder.decode(
+                latents.to(decoder.dtype),
+                generator=torch.Generator(torch_device).manual_seed(0),
+                return_dict=False,
+                keyframe_latents=keyframes.to(decoder.dtype),
+                keyframe_frame_indices=[8, 16],
+            )[0]
+        assert torch.equal(with_planes, pipe.video_processor.postprocess_video(direct, output_type="pt"))

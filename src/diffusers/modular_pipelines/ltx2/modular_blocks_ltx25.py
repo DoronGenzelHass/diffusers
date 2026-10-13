@@ -61,6 +61,10 @@ class LTX25DecoderStep(SequentialPipelineBlocks):
               Denoised audio latents.
           audio_num_frames (`int`):
               Number of audio latent frames, used to unpack the audio latent sequence.
+          keyframe_latents (`Tensor`, *optional*):
+              Denormalized keyframe planes `(B, C, P, H, W)` forwarded to the diffusion decoder.
+          keyframe_frame_indices (`list`, *optional*):
+              Pixel-frame index of each keyframe plane.
 
       Outputs:
           videos (`list`):
@@ -119,6 +123,10 @@ class LTX25ConditionDecoderStep(SequentialPipelineBlocks):
               Denoised audio latents.
           audio_num_frames (`int`):
               Number of audio latent frames, used to unpack the audio latent sequence.
+          keyframe_latents (`Tensor`, *optional*):
+              Denormalized keyframe planes `(B, C, P, H, W)` forwarded to the diffusion decoder.
+          keyframe_frame_indices (`list`, *optional*):
+              Pixel-frame index of each keyframe plane.
 
       Outputs:
           videos (`list`):
@@ -180,6 +188,10 @@ class LTX25AutoDecoderStep(AutoPipelineBlocks):
               Denoised audio latents.
           audio_num_frames (`int`):
               Number of audio latent frames, used to unpack the audio latent sequence.
+          keyframe_latents (`Tensor`, *optional*):
+              Denormalized keyframe planes `(B, C, P, H, W)` forwarded to the diffusion decoder.
+          keyframe_frame_indices (`list`, *optional*):
+              Pixel-frame index of each keyframe plane.
 
       Outputs:
           videos (`list`):

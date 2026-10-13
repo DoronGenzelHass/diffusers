@@ -1244,7 +1244,7 @@ pipe.transformer.disable_adapters()
 
 The two axes are seamed differently. Neither side of a spatial border holds a known answer, so those overlaps are blended with trapezoidal weights. Temporal tiles are cut on the last refine round's keyframe seams.
 
-**Decoding with the diffusion decoder.** For maximum detail fidelity, stay on `output_type="latent"` and hand the (already denormalized, possibly `trim_canvas`'d) latents to [`LTX2VideoDiffusionDecodePipeline`].
+**Decoding with the diffusion decoder.** For maximum detail fidelity, stay on `output_type="latent"` and hand the (already denormalized, possibly `trim_canvas`'d) latents to [`LTX2VideoDiffusionDecodePipeline`]. When the pass produced keyframe slots, pass those too so the decoder can attend to them:
 
 ```py
 from diffusers import LTX2VideoDiffusionDecodePipeline
@@ -1258,7 +1258,14 @@ decode_pipe = LTX2VideoDiffusionDecodePipeline(
 )
 decode_pipe.enable_model_cpu_offload()
 # `denormalize=False`: the `output_type="latent"` path already applied the latent statistics.
-video = decode_pipe(latents=out3.frames, denormalize=False, output_type="np", return_dict=False)[0]
+video = decode_pipe(
+    latents=out3.frames,
+    denormalize=False,
+    keyframe_latents=out3.keyframes,
+    keyframe_frame_indices=out3.keyframe_positions,
+    output_type="np",
+    return_dict=False,
+)[0]
 ```
 
 ## LTX2Pipeline
